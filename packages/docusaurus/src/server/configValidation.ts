@@ -16,6 +16,7 @@ import {
   addLeadingSlash,
   removeTrailingSlash,
 } from '@docusaurus/utils-common';
+import logger from '@docusaurus/logger';
 import type {
   FasterConfig,
   FutureConfig,
@@ -49,6 +50,8 @@ export const DEFAULT_FASTER_CONFIG: FasterConfig = {
   lightningCssMinimizer: false,
   mdxCrossCompilerCache: false,
   rspackBundler: false,
+  rspackPersistentCache: false,
+  ssgWorkerThreads: false,
 };
 
 // When using the "faster: true" shortcut
@@ -59,6 +62,8 @@ export const DEFAULT_FASTER_CONFIG_TRUE: FasterConfig = {
   lightningCssMinimizer: true,
   mdxCrossCompilerCache: true,
   rspackBundler: true,
+  rspackPersistentCache: true,
+  ssgWorkerThreads: true,
 };
 
 export const DEFAULT_FUTURE_V4_CONFIG: FutureV4Config = {
@@ -243,6 +248,12 @@ const FASTER_CONFIG_SCHEMA = Joi.alternatives()
         DEFAULT_FASTER_CONFIG.mdxCrossCompilerCache,
       ),
       rspackBundler: Joi.boolean().default(DEFAULT_FASTER_CONFIG.rspackBundler),
+      rspackPersistentCache: Joi.boolean().default(
+        DEFAULT_FASTER_CONFIG.rspackPersistentCache,
+      ),
+      ssgWorkerThreads: Joi.boolean().default(
+        DEFAULT_FASTER_CONFIG.ssgWorkerThreads,
+      ),
     }),
     Joi.boolean()
       .required()
@@ -445,6 +456,40 @@ export const ConfigSchema = Joi.object<DocusaurusConfig>({
     'Docusaurus config validation warning. Field {#label}: {#warningMessage}',
 });
 
+// Expressing this kind of logic in Joi is a pain
+// We also want to decouple logic from Joi: easier to remove it later!
+function ensureDocusaurusConfigConsistency(config: DocusaurusConfig) {
+  if (
+    config.future.experimental_faster.ssgWorkerThreads &&
+    !config.future.v4.removeLegacyPostBuildHeadAttribute
+  ) {
+    throw new Error(
+      `Docusaurus config ${logger.code(
+        'future.experimental_faster.ssgWorkerThreads',
+      )} requires the future flag ${logger.code(
+        'future.v4.removeLegacyPostBuildHeadAttribute',
+      )} to be turned on.
+If you use Docusaurus Faster, we recommend that you also activate Docusaurus v4 future flags: ${logger.code(
+        '{future: {v4: true}}',
+      )}
+All the v4 future flags are documented here: https://docusaurus.io/docs/api/docusaurus-config#future`,
+    );
+  }
+
+  if (
+    config.future.experimental_faster.rspackPersistentCache &&
+    !config.future.experimental_faster.rspackBundler
+  ) {
+    throw new Error(
+      `Docusaurus config flag ${logger.code(
+        'future.experimental_faster.rspackPersistentCache',
+      )} requires the flag ${logger.code(
+        'future.experimental_faster.rspackBundler',
+      )} to be turned on.`,
+    );
+  }
+}
+
 // TODO move to @docusaurus/utils-validation
 export function validateConfig(
   config: unknown,
@@ -476,7 +521,9 @@ export function validateConfig(
       ? `${formattedError}These field(s) (${unknownFields}) are not recognized in ${siteConfigPath}.\nIf you still want these fields to be in your configuration, put them in the "customFields" field.\nSee https://docusaurus.io/docs/api/docusaurus-config/#customfields`
       : formattedError;
     throw new Error(formattedError);
-  } else {
-    return value;
   }
+
+  ensureDocusaurusConfigConsistency(value);
+
+  return value;
 }

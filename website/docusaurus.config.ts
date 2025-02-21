@@ -282,7 +282,7 @@ export default async function createConfigAsync() {
         },
       ],
       [
-        './src/plugins/changelog/index.js',
+        './src/plugins/changelog/index.ts',
         {
           blogTitle: 'Docusaurus changelog',
           blogDescription:
@@ -358,7 +358,6 @@ export default async function createConfigAsync() {
       ],
       [
         'ideal-image',
-
         {
           quality: 70,
           max: 1030,
